@@ -2,9 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 
-class Favorite extends Model
+class Favorite extends Pivot
 {
-    //
+    protected $table = 'favorites';
+    protected $fillable = [
+        'user_id',
+        'restaurant_id'
+    ];
 }
