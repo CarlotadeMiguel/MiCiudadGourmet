@@ -13,6 +13,8 @@ Route::middleware('auth')->group(function () {
     Route::get('restaurants/{restaurant}/edit', [RestaurantController::class, 'edit'])->name('restaurants.edit');
     Route::put('restaurants/{restaurant}', [RestaurantController::class, 'update'])->name('restaurants.update');
     Route::delete('restaurants/{restaurant}', [RestaurantController::class, 'destroy'])->name('restaurants.destroy');
+    Route::resource('restaurants', RestaurantController::class)
+        ->except(['index', 'show']);
 });
 
 // Rutas públicas de restaurantes (solo index y show)
