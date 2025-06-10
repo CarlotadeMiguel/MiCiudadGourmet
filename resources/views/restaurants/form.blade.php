@@ -5,7 +5,9 @@
         <div class="col-12">
             <h1>{{ isset($restaurant) ? 'Editar' : 'Crear' }} Restaurante</h1>
             
-            <form method="POST" action="{{ isset($restaurant) ? route('restaurants.update', $restaurant) : route('restaurants.store') }}">
+            <form method="POST"
+                  action="{{ isset($restaurant) ? route('restaurants.update', $restaurant) : route('restaurants.store') }}"
+                  enctype="multipart/form-data">
                 @csrf
                 @if(isset($restaurant))
                     @method('PUT')
@@ -39,6 +41,14 @@
                             </label>
                         </div>
                     @endforeach
+                </div>
+
+                <div class="mb-3">
+                    <label for="photo" class="form-label">Foto</label>
+                    <input type="file" class="form-control" id="photo" name="photo" accept="image/*">
+                    @if(isset($restaurant) && $restaurant->photos->first())
+                        <img src="{{ $restaurant->photos->first()->url }}" class="img-thumbnail mt-2" style="max-width: 200px;">
+                    @endif
                 </div>
 
                 <button type="submit" class="btn btn-primary">{{ isset($restaurant) ? 'Actualizar' : 'Guardar' }}</button>

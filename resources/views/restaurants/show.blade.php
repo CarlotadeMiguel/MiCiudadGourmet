@@ -4,6 +4,9 @@
     <div class="row">
         <div class="col-12">
             <h1>{{ $restaurant->name }}</h1>
+            @if($restaurant->photos->first())
+                <img src="{{ $restaurant->photos->first()->url }}" class="img-fluid mb-3" alt="Foto restaurante">
+            @endif
             <p class="lead">{{ $restaurant->address }}</p>
             <p>Teléfono: {{ $restaurant->phone ?? 'No disponible' }}</p>
             
