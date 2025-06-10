@@ -3,30 +3,20 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\StoreReviewRequest;
+use App\Http\Requests\UpdateReviewRequest;
 use App\Models\Review;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 
 class ReviewController extends Controller
 {
     /**
-     * Listar todas las reseñas
+     * Listar todas las reseñas (público)
      */
-    public function index(Request $request)
+    public function index(): JsonResponse
     {
-        $query = Review::with(['user', 'restaurant']);
-
-        // Filtrar por restaurante si se especifica
-        if ($request->has('restaurant_id')) {
-            $query->where('restaurant_id', $request->restaurant_id);
-        }
-
-        // Filtrar por usuario si se especifica
-        if ($request->has('user_id')) {
-            $query->where('user_id', $request->user_id);
-        }
-
-        $reviews = $query->orderBy('created_at', 'desc')->get();
+        $reviews = Review::with(['user', 'restaurant'])->get();
 
         return response()->json([
             'success' => true,
@@ -35,31 +25,38 @@ class ReviewController extends Controller
     }
 
     /**
-     * Crear una nueva reseña
+     * Mostrar una reseña concreta (público)
      */
-    public function store(Request $request)
+    public function show(Review $review): JsonResponse
     {
-        $validated = $request->validate([
-            'rating' => 'required|integer|min:1|max:5',
-            'comment' => 'nullable|string|max:1000',
-            'restaurant_id' => 'required|exists:restaurants,id'
+        return response()->json([
+            'success' => true,
+            'data' => $review->load(['user', 'restaurant'])
         ]);
+    }
 
-        // Verificar si el usuario ya reseñó este restaurante
-        $existingReview = Review::where('user_id', Auth::id())
+    /**
+     * Crear una reseña (protegido)
+     */
+    public function store(StoreReviewRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+
+        // Evitar duplicados: un usuario solo puede reseñar un restaurante una vez
+        $exists = Review::where('user_id', Auth::id())
             ->where('restaurant_id', $validated['restaurant_id'])
-            ->first();
+            ->exists();
 
-        if ($existingReview) {
+        if ($exists) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ya has reseñado este restaurante'
+                'message' => 'Ya has reseñado este restaurante.'
             ], 409);
         }
 
         $review = Review::create([
             'rating' => $validated['rating'],
-            'comment' => $validated['comment'],
+            'comment' => $validated['comment'] ?? null,
             'restaurant_id' => $validated['restaurant_id'],
             'user_id' => Auth::id()
         ]);
@@ -71,87 +68,30 @@ class ReviewController extends Controller
     }
 
     /**
-     * Mostrar una reseña específica
+     * Actualizar una reseña (protegido)
      */
-    public function show($id)
+    public function update(UpdateReviewRequest $request, Review $review): JsonResponse
     {
-        $review = Review::with(['user', 'restaurant'])->find($id);
-
-        if (!$review) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Reseña no encontrada'
-            ], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $review
-        ]);
-    }
-
-    /**
-     * Actualizar una reseña
-     */
-    public function update(Request $request, $id)
-    {
-        $review = Review::find($id);
-
-        if (!$review) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Reseña no encontrada'
-            ], 404);
-        }
-
-        // Solo el autor puede actualizar su reseña
-        if ($review->user_id !== Auth::id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No autorizado'
-            ], 403);
-        }
-
-        $validated = $request->validate([
-            'rating' => 'sometimes|required|integer|min:1|max:5',
-            'comment' => 'nullable|string|max:1000'
-        ]);
-
+        $validated = $request->validated();
         $review->update($validated);
 
         return response()->json([
             'success' => true,
-            'data' => $review->load(['user', 'restaurant'])
+            'data' => $review->fresh(['user', 'restaurant'])
         ]);
     }
 
     /**
-     * Eliminar una reseña
+     * Eliminar una reseña (protegido)
      */
-    public function destroy($id)
+    public function destroy(Review $review): JsonResponse
     {
-        $review = Review::find($id);
-
-        if (!$review) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Reseña no encontrada'
-            ], 404);
-        }
-
-        // Solo el autor puede eliminar su reseña
-        if ($review->user_id !== Auth::id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No autorizado'
-            ], 403);
-        }
-
+        // Solo el autor puede eliminar su reseña (ya cubierto por la política o FormRequest)
         $review->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Reseña eliminada'
+            'message' => 'Reseña eliminada correctamente'
         ]);
     }
 }

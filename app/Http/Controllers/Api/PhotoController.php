@@ -3,17 +3,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\StorePhotoRequest;
+use App\Http\Requests\UpdatePhotoRequest;
 use App\Models\Photo;
 use App\Models\Restaurant;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class PhotoController extends Controller
 {
     /**
-     * Listar fotos
+     * Listar fotos (público)
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $query = Photo::with('imageable');
 
@@ -36,15 +38,11 @@ class PhotoController extends Controller
     }
 
     /**
-     * Subir una nueva foto
+     * Subir una nueva foto (protegido)
      */
-    public function store(Request $request)
+    public function store(StorePhotoRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'url' => 'required|url',
-            'imageable_type' => 'required|in:App\Models\Restaurant,App\Models\Review',
-            'imageable_id' => 'required|integer'
-        ]);
+        $validated = $request->validated();
 
         // Verificar que la entidad existe
         $modelClass = $validated['imageable_type'];
@@ -53,17 +51,6 @@ class PhotoController extends Controller
                 'success' => false,
                 'message' => 'La entidad especificada no existe'
             ], 404);
-        }
-
-        // Si es un restaurante, verificar que pertenece al usuario
-        if ($validated['imageable_type'] === 'App\Models\Restaurant') {
-            $restaurant = Restaurant::find($validated['imageable_id']);
-            if ($restaurant->user_id !== Auth::id()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No autorizado'
-                ], 403);
-            }
         }
 
         $photo = Photo::create($validated);
@@ -75,9 +62,9 @@ class PhotoController extends Controller
     }
 
     /**
-     * Mostrar una foto específica
+     * Mostrar una foto específica (público)
      */
-    public function show($id)
+    public function show($id): JsonResponse
     {
         $photo = Photo::with('imageable')->find($id);
 
@@ -95,22 +82,11 @@ class PhotoController extends Controller
     }
 
     /**
-     * Actualizar una foto
+     * Actualizar una foto (protegido)
      */
-    public function update(Request $request, $id)
+    public function update(UpdatePhotoRequest $request, Photo $photo): JsonResponse
     {
-        $photo = Photo::find($id);
-
-        if (!$photo) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Foto no encontrada'
-            ], 404);
-        }
-
-        $validated = $request->validate([
-            'url' => 'sometimes|required|url'
-        ]);
+        $validated = $request->validated();
 
         $photo->update($validated);
 
@@ -121,19 +97,10 @@ class PhotoController extends Controller
     }
 
     /**
-     * Eliminar una foto
+     * Eliminar una foto (protegido)
      */
-    public function destroy($id)
+    public function destroy(Photo $photo): JsonResponse
     {
-        $photo = Photo::find($id);
-
-        if (!$photo) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Foto no encontrada'
-            ], 404);
-        }
-
         $photo->delete();
 
         return response()->json([

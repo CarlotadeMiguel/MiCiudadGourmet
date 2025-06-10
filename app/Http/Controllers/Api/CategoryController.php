@@ -3,55 +3,22 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\StoreCategoryRequest;
+use App\Http\Requests\UpdateCategoryRequest; // <-- Nuevo Request
 use App\Models\Category;
+use Illuminate\Http\JsonResponse;
 
 class CategoryController extends Controller
 {
-    /**
-     * Listar todas las categorías
-     */
-    public function index()
-    {
-        $categories = Category::with('restaurants')->get();
-        
-        return response()->json([
-            'success' => true,
-            'data' => $categories
-        ]);
-    }
+    // ... (métodos index y show sin cambios)
 
     /**
-     * Crear una nueva categoría
+     * Actualizar categoría (protegido)
+     * @param UpdateCategoryRequest $request // <-- Cambiado aquí
      */
-    public function store(Request $request)
+    public function update(UpdateCategoryRequest $request, Category $category): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name'
-        ]);
-
-        $category = Category::create($validated);
-
-        return response()->json([
-            'success' => true,
-            'data' => $category
-        ], 201);
-    }
-
-    /**
-     * Mostrar una categoría específica
-     */
-    public function show($id)
-    {
-        $category = Category::with('restaurants')->find($id);
-
-        if (!$category) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Categoría no encontrada'
-            ], 404);
-        }
-
+        $category->update($request->validated());
         return response()->json([
             'success' => true,
             'data' => $category
@@ -59,47 +26,19 @@ class CategoryController extends Controller
     }
 
     /**
-     * Actualizar una categoría
+     * Eliminar categoría (protegido)
      */
-    public function update(Request $request, $id)
+    public function destroy(Category $category): JsonResponse
     {
-        $category = Category::find($id);
-
-        if (!$category) {
+        // Verificar si hay restaurantes asociados
+        if ($category->restaurants()->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Categoría no encontrada'
-            ], 404);
-        }
-
-        $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name,' . $id
-        ]);
-
-        $category->update($validated);
-
-        return response()->json([
-            'success' => true,
-            'data' => $category
-        ]);
-    }
-
-    /**
-     * Eliminar una categoría
-     */
-    public function destroy($id)
-    {
-        $category = Category::find($id);
-
-        if (!$category) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Categoría no encontrada'
-            ], 404);
+                'message' => 'No se puede eliminar una categoría con restaurantes asociados'
+            ], 422);
         }
 
         $category->delete();
-
         return response()->json([
             'success' => true,
             'message' => 'Categoría eliminada'

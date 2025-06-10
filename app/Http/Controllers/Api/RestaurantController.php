@@ -3,18 +3,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\StoreRestaurantRequest;
+use App\Http\Requests\UpdateRestaurantRequest;
 use App\Models\Restaurant;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\JsonResponse;
 
 class RestaurantController extends Controller
 {
     /**
      * Listar todos los restaurantes (público)
      */
-    public function index()
+    public function index(): JsonResponse
     {
-        // Cargar restaurantes con categorías, fotos y reseñas
         $restaurants = Restaurant::with(['categories', 'photos', 'reviews'])->get();
 
         return response()->json([
@@ -26,38 +27,21 @@ class RestaurantController extends Controller
     /**
      * Mostrar un restaurante concreto (público)
      */
-    public function show($id)
+    public function show(Restaurant $restaurant): JsonResponse
     {
-        $restaurant = Restaurant::with(['categories', 'photos', 'reviews'])->find($id);
-
-        if (!$restaurant) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Restaurante no encontrado'
-            ], 404);
-        }
-
         return response()->json([
             'success' => true,
-            'data' => $restaurant
+            'data' => $restaurant->load(['categories', 'photos', 'reviews'])
         ]);
     }
 
     /**
      * Crear un restaurante (protegido)
      */
-    public function store(Request $request)
+    public function store(StoreRestaurantRequest $request): JsonResponse
     {
-        // Validar datos
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'address' => 'required|string',
-            'phone' => 'nullable|string|max:30',
-            'category_ids' => 'required|array|min:1',
-            'category_ids.*' => 'exists:categories,id'
-        ]);
+        $validated = $request->validated();
 
-        // Crear restaurante asociado al usuario autenticado
         $restaurant = Restaurant::create([
             'name' => $validated['name'],
             'address' => $validated['address'],
@@ -65,87 +49,43 @@ class RestaurantController extends Controller
             'user_id' => Auth::id(),
         ]);
 
-        // Asociar categorías
         $restaurant->categories()->attach($validated['category_ids']);
-
-        // Puedes asociar fotos aquí si las recibes en la petición
 
         return response()->json([
             'success' => true,
-            'data' => $restaurant->load(['categories', 'photos', 'reviews'])
+            'data' => $restaurant->load(['categories', 'photos'])
         ], 201);
     }
 
     /**
      * Actualizar un restaurante (protegido)
      */
-    public function update(Request $request, $id)
+    public function update(UpdateRestaurantRequest $request, Restaurant $restaurant): JsonResponse
     {
-        $restaurant = Restaurant::find($id);
-
-        if (!$restaurant) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Restaurante no encontrado'
-            ], 404);
-        }
-
-        // Opcional: Permitir solo al dueño editar
-        if ($restaurant->user_id !== Auth::id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No autorizado'
-            ], 403);
-        }
-
-        $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'address' => 'sometimes|required|string',
-            'phone' => 'nullable|string|max:30',
-            'category_ids' => 'sometimes|array|min:1',
-            'category_ids.*' => 'exists:categories,id'
-        ]);
+        $validated = $request->validated();
 
         $restaurant->update($validated);
 
-        // Actualizar categorías si se envían
         if (isset($validated['category_ids'])) {
             $restaurant->categories()->sync($validated['category_ids']);
         }
 
         return response()->json([
             'success' => true,
-            'data' => $restaurant->load(['categories', 'photos', 'reviews'])
+            'data' => $restaurant->fresh(['categories', 'photos'])
         ]);
     }
 
     /**
      * Eliminar un restaurante (protegido)
      */
-    public function destroy($id)
+    public function destroy(Restaurant $restaurant): JsonResponse
     {
-        $restaurant = Restaurant::find($id);
-
-        if (!$restaurant) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Restaurante no encontrado'
-            ], 404);
-        }
-
-        // Opcional: Solo el dueño puede borrar
-        if ($restaurant->user_id !== Auth::id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No autorizado'
-            ], 403);
-        }
-
         $restaurant->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Restaurante eliminado'
+            'message' => 'Restaurante eliminado correctamente'
         ]);
     }
 }

@@ -3,16 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\StoreFavoriteRequest;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Restaurant;
+use Illuminate\Http\JsonResponse;
 
 class FavoriteController extends Controller
 {
     /**
      * Listar favoritos del usuario autenticado
      */
-    public function index()
+    public function index(): JsonResponse
     {
         $favorites = Auth::user()->favorites()->with(['categories', 'photos'])->get();
 
@@ -24,15 +25,12 @@ class FavoriteController extends Controller
 
     /**
      * Marcar restaurante como favorito
+     * @param StoreFavoriteRequest $request
      */
-    public function store(Request $request)
+    public function store(StoreFavoriteRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'restaurant_id' => 'required|exists:restaurants,id'
-        ]);
-
         $user = Auth::user();
-        $restaurantId = $validated['restaurant_id'];
+        $restaurantId = $request->validated()['restaurant_id'];
 
         // Verificar si ya es favorito
         if ($user->favorites()->where('restaurant_id', $restaurantId)->exists()) {
@@ -56,10 +54,10 @@ class FavoriteController extends Controller
     /**
      * Mostrar un favorito específico
      */
-    public function show($restaurantId)
+    public function show($restaurantId): JsonResponse
     {
         $user = Auth::user();
-        
+
         $favorite = $user->favorites()
             ->with(['categories', 'photos', 'reviews'])
             ->where('restaurant_id', $restaurantId)
@@ -81,7 +79,7 @@ class FavoriteController extends Controller
     /**
      * Quitar restaurante de favoritos
      */
-    public function destroy($restaurantId)
+    public function destroy($restaurantId): JsonResponse
     {
         $user = Auth::user();
 
