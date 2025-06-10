@@ -4,9 +4,12 @@
     <div class="row">
         <div class="col-12">
             <h1>Restaurantes</h1>
-            @can('create', App\Models\Restaurant::class)
-                <a href="{{ route('restaurants.create') }}" class="btn btn-primary mb-3">Nuevo Restaurante</a>
-            @endcan
+            @auth
+            <button class="btn btn-primary mb-3"
+            onclick="window.location='{{ route('restaurants.create') }}'">
+                Nuevo Restaurante
+            </button>
+            @endauth
         </div>
     </div>
 
