@@ -11,8 +11,14 @@ class UpdateReviewRequest extends FormRequest
     public function authorize(): bool
     {
         // Solo el autor puede actualizar su reseña
-        $review = Review::find($this->route('review'));
-        return $review && $review->user_id === Auth::id();
+        $review = $this->route('review');
+        
+        // Verificar que review sea un modelo y no una colección
+        if ($review instanceof Review) {
+            return $review->user_id === Auth::id();
+        }
+        
+        return false;
     }
 
     public function rules(): array

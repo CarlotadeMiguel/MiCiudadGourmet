@@ -21,6 +21,12 @@ Route::middleware('auth')->group(function () {
 Route::get('restaurants', [RestaurantController::class, 'index'])->name('restaurants.index');
 Route::get('restaurants/{restaurant}', [RestaurantController::class, 'show'])->name('restaurants.show');
 
+// Rutas para reseñas
+Route::middleware('auth')->group(function() {
+    Route::post('reviews', [App\Http\Controllers\ReviewController::class, 'store'])->name('reviews.store');
+    Route::put('reviews/{review}', [App\Http\Controllers\ReviewController::class, 'update'])->name('reviews.update');
+});
+
 // Autenticación: solo para invitados
 Route::middleware('guest')->group(function() {
     Route::get('login', [AuthController::class, 'showLoginForm'])->name('login');
