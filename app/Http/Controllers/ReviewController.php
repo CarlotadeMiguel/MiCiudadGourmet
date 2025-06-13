@@ -17,31 +17,18 @@ class ReviewController extends Controller
     public function store(StoreReviewRequest $request): RedirectResponse
     {
         $validated = $request->validated();
+        $restaurantId = $validated['restaurant_id'];
+        $userId = Auth::id();
         
-        // Verificar que el usuario no sea dueño del restaurante
-        $restaurant = Restaurant::findOrFail($validated['restaurant_id']);
-        if (Auth::id() === $restaurant->user_id) {
-            return back()->with('error', 'No puedes reseñar tu propio restaurante.');
-        }
-        
-        // Evitar duplicados: un usuario solo puede reseñar un restaurante una vez
-        $exists = Review::where('user_id', Auth::id())
-            ->where('restaurant_id', $validated['restaurant_id'])
-            ->exists();
-
-        if ($exists) {
-            return back()->with('error', 'Ya has reseñado este restaurante.');
-        }
-
-        // Crear la reseña
+        // Crear la reseña (las validaciones ya se manejan en el FormRequest)
         Review::create([
             'rating' => $validated['rating'],
             'comment' => $validated['comment'] ?? null,
-            'restaurant_id' => $validated['restaurant_id'],
-            'user_id' => Auth::id()
+            'restaurant_id' => $restaurantId,
+            'user_id' => $userId
         ]);
 
-        return redirect()->route('restaurants.show', $validated['restaurant_id'])
+        return redirect()->route('restaurants.show', $restaurantId)
             ->with('success', 'Reseña publicada correctamente.');
     }
     
@@ -50,11 +37,7 @@ class ReviewController extends Controller
      */
     public function update(UpdateReviewRequest $request, Review $review): RedirectResponse
     {
-        // Verificar que el usuario sea el autor de la reseña
-        if (Auth::id() !== $review->user_id) {
-            return back()->with('error', 'No puedes editar una reseña que no es tuya.');
-        }
-        
+        // La autorización ya se maneja en el FormRequest
         $validated = $request->validated();
         
         $review->update([

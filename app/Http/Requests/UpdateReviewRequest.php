@@ -24,10 +24,22 @@ class UpdateReviewRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // rating: opcional, entero entre 1 y 5
-            'rating' => 'sometimes|integer|min:1|max:5',
+            // rating: requerido, entero entre 1 y 5
+            'rating' => 'required|integer|min:1|max:5',
             // comment: opcional, string máximo 1000 caracteres
             'comment' => 'nullable|string|max:1000'
+        ];
+    }
+    
+    /**
+     * Mensajes de error personalizados.
+     */
+    public function messages(): array
+    {
+        return [
+            'rating.required' => 'La calificación es obligatoria.',
+            'rating.min' => 'La calificación debe ser entre 1 y 5 estrellas.',
+            'rating.max' => 'La calificación debe ser entre 1 y 5 estrellas.',
         ];
     }
 }

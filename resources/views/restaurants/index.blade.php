@@ -32,6 +32,24 @@
                     <p class="card-text text-muted">
                         <i class="bi bi-geo-alt me-1"></i>{{ $restaurant->address }}
                     </p>
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            @if($restaurant->reviews_count > 0)
+                                <span class="badge bg-warning text-dark">
+                                    <i class="bi bi-star-fill me-1"></i>
+                                    {{ number_format($restaurant->reviews_avg_rating, 1) }}
+                                </span>
+                                <small class="text-muted ms-1">({{ $restaurant->reviews_count }})</small>
+                            @else
+                                <small class="text-muted">Sin reseñas</small>
+                            @endif
+                        </div>
+                        <small class="text-muted">
+                            {{ $restaurant->categories->pluck('name')->first() }}
+                        </small>
+                    </div>
+                    
                     <div class="d-grid">
                         <a href="{{ route('restaurants.show', $restaurant) }}" 
                            class="btn btn-outline-primary">

@@ -77,13 +77,19 @@
                             <div class="card-body">
                                 <div class="mb-4">
                                     <h5 class="mb-3">Opiniones de los usuarios</h5>
-                                    @forelse($restaurant->reviews->sortByDesc('created_at')->take(5) as $review)
+                                    @php
+                                        $reviews = $restaurant->reviews->sortByDesc('created_at');
+                                        $topReviews = $reviews->take(5);
+                                        $remainingReviews = $reviews->count() > 5 ? $reviews->slice(5) : collect();
+                                    @endphp
+                                    
+                                    @forelse($topReviews as $review)
                                         <div class="card mb-3 border-0 shadow-sm">
                                             <div class="card-body">
                                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                                     <div>
                                                         <span class="badge bg-warning text-dark me-2">
-                                                            ⭐ {{ $review->rating }}/5
+                                                            <i class="bi bi-star-fill"></i> {{ $review->rating }}/5
                                                         </span>
                                                         <small class="text-muted">
                                                             {{ $review->user->name }} - {{ $review->created_at->diffForHumans() }}
@@ -104,21 +110,21 @@
                                         <p class="text-muted">Aún no hay reseñas para este restaurante.</p>
                                     @endforelse
                                     
-                                    @if($restaurant->reviews->count() > 5)
+                                    @if($remainingReviews->count() > 0)
                                         <div class="text-center mt-3">
                                             <button class="btn btn-sm btn-outline-secondary" id="show-more-reviews">
-                                                Ver más reseñas ({{ $restaurant->reviews->count() - 5 }} más)
+                                                Ver más reseñas ({{ $remainingReviews->count() }} más)
                                             </button>
                                         </div>
                                         
                                         <div id="more-reviews" class="d-none mt-3">
-                                            @foreach($restaurant->reviews->sortByDesc('created_at')->slice(5) as $review)
+                                            @foreach($remainingReviews as $review)
                                                 <div class="card mb-3 border-0 shadow-sm">
                                                     <div class="card-body">
                                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                                             <div>
                                                                 <span class="badge bg-warning text-dark me-2">
-                                                                    ⭐ {{ $review->rating }}/5
+                                                                    <i class="bi bi-star-fill"></i> {{ $review->rating }}/5
                                                                 </span>
                                                                 <small class="text-muted">
                                                                     {{ $review->user->name }} - {{ $review->created_at->diffForHumans() }}
@@ -126,12 +132,9 @@
                                                             </div>
                                                             @auth
                                                                 @if(auth()->id() === $review->user_id)
-                                                                    <button class="btn btn-sm btn-outline-primary edit-review-btn" 
-                                                                            data-review-id="{{ $review->id }}"
-                                                                            data-rating="{{ $review->rating }}"
-                                                                            data-comment="{{ $review->comment }}">
+                                                                    <a href="{{ route('restaurants.show', $restaurant) }}?edit_review={{ $review->id }}" class="btn btn-sm btn-outline-primary">
                                                                         <i class="bi bi-pencil-square"></i> Editar
-                                                                    </button>
+                                                                    </a>
                                                                 @endif
                                                             @endauth
                                                         </div>

@@ -4,7 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Restaurant;
 use App\Models\Category;
-use Illuminate\Http\Request;
+use App\Http\Requests\StoreRestaurantRequest;
+use App\Http\Requests\UpdateRestaurantRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
@@ -13,21 +14,24 @@ class RestaurantController extends Controller
     // Mostrar listado de restaurantes
     public function index()
     {
-        $restaurants = Restaurant::with(['categories', 'photos', 'reviews'])->get();
+        $restaurants = Restaurant::with(['categories', 'photos' => function($query) {
+            $query->latest()->take(1);
+        }])->withCount('reviews')->withAvg('reviews', 'rating')->get();
+        
         return view('restaurants.index', compact('restaurants'));
     }
 
     // Mostrar detalles de un restaurante
     public function show(Restaurant $restaurant)
     {
-        $restaurant->load(['categories', 'photos', 'reviews']);
+        $restaurant->load(['categories', 'photos', 'reviews.user']);
         return view('restaurants.show', compact('restaurant'));
     }
 
     // Formulario de creación
     public function create()
     {
-        $categories = Category::all();
+        $categories = Category::orderBy('name')->get();
         return view('restaurants.form', [
             'categories' => $categories,
             'restaurant' => null
@@ -35,16 +39,9 @@ class RestaurantController extends Controller
     }
 
     // Guardar restaurante nuevo
-    public function store(Request $request)
+    public function store(StoreRestaurantRequest $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'address' => 'required|string',
-            'phone' => 'nullable|string|max:20',
-            'category_ids' => 'required|array|min:1',
-            'category_ids.*' => 'exists:categories,id',
-            'photo' => 'nullable|image|max:2048' // Nueva validación
-        ]);
+        $validated = $request->validated();
     
         $restaurant = Restaurant::create([
             'name' => $validated['name'],
@@ -52,6 +49,7 @@ class RestaurantController extends Controller
             'phone' => $validated['phone'] ?? null,
             'user_id' => Auth::id()
         ]);
+        
         $restaurant->categories()->attach($validated['category_ids']);
     
         // Guardar foto si se subió
@@ -73,40 +71,38 @@ class RestaurantController extends Controller
         if (Auth::id() !== $restaurant->user_id) {
             abort(403, 'No autorizado');
         }
-        $categories = Category::all();
+        
+        $restaurant->load('categories');
+        $categories = Category::orderBy('name')->get();
+        
         return view('restaurants.form', compact('restaurant', 'categories'));
     }
 
     // Actualizar restaurante
-    public function update(Request $request, Restaurant $restaurant)
-{
-    if (Auth::id() !== $restaurant->user_id) {
-        abort(403, 'No autorizado');
-    }
+    public function update(UpdateRestaurantRequest $request, Restaurant $restaurant)
+    {
+        // La autorización ya se maneja en el FormRequest
+        $validated = $request->validated();
 
-    $validated = $request->validate([
-        'name' => 'required|string|max:255',
-        'address' => 'required|string',
-        'phone' => 'nullable|string|max:20',
-        'category_ids' => 'required|array|min:1',
-        'category_ids.*' => 'exists:categories,id',
-        'photo' => 'nullable|image|max:2048'
-    ]);
-
-    $restaurant->update($validated);
-    $restaurant->categories()->sync($validated['category_ids']);
-
-    // Guardar nueva foto si se subió
-    if ($request->hasFile('photo')) {
-        $path = $request->file('photo')->store('restaurants', 'public');
-        $restaurant->photos()->create([
-            'url' => '/storage/' . $path,
+        $restaurant->update([
+            'name' => $validated['name'],
+            'address' => $validated['address'],
+            'phone' => $validated['phone'] ?? null,
         ]);
-    }
+        
+        $restaurant->categories()->sync($validated['category_ids']);
 
-    return redirect()->route('restaurants.show', $restaurant)
-        ->with('success', 'Restaurante actualizado correctamente');
-}
+        // Guardar nueva foto si se subió
+        if ($request->hasFile('photo')) {
+            $path = $request->file('photo')->store('restaurants', 'public');
+            $restaurant->photos()->create([
+                'url' => '/storage/' . $path,
+            ]);
+        }
+
+        return redirect()->route('restaurants.show', $restaurant)
+            ->with('success', 'Restaurante actualizado correctamente');
+    }
 
     // Eliminar restaurante
     public function destroy(Restaurant $restaurant)

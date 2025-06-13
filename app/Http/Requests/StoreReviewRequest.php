@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Review;
+use App\Models\Restaurant;
 
 class StoreReviewRequest extends FormRequest
 {
@@ -12,6 +13,32 @@ class StoreReviewRequest extends FormRequest
     {
         // Solo usuarios autenticados pueden crear reseñas
         return Auth::check();
+    }
+    
+    /**
+     * Configurar validaciones adicionales después de que las reglas base se han validado
+     */
+    public function withValidator($validator)
+    {
+        $validator->after(function ($validator) {
+            $restaurantId = $this->input('restaurant_id');
+            $userId = Auth::id();
+            
+            // Verificar que el usuario no sea dueño del restaurante
+            $restaurant = Restaurant::find($restaurantId);
+            if ($restaurant && $userId === $restaurant->user_id) {
+                $validator->errors()->add('restaurant_id', 'No puedes reseñar tu propio restaurante.');
+            }
+            
+            // Evitar duplicados: un usuario solo puede reseñar un restaurante una vez
+            $exists = Review::where('user_id', $userId)
+                ->where('restaurant_id', $restaurantId)
+                ->exists();
+                
+            if ($exists) {
+                $validator->errors()->add('restaurant_id', 'Ya has reseñado este restaurante.');
+            }
+        });
     }
 
     public function rules(): array
