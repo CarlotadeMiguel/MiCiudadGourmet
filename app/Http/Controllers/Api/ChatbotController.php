@@ -1,4 +1,3 @@
-// app/Http/Controllers/Api/ChatbotController.php
 <?php
 
 namespace App\Http\Controllers\Api;
