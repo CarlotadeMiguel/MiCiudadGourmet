@@ -1,4 +1,3 @@
-// app/Services/ChatbotService.php
 <?php
 
 namespace App\Services;
@@ -7,6 +6,7 @@ use App\Models\ChatConversation;
 use App\Models\ChatMessage;
 use Gemini\Laravel\Facades\Gemini;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class ChatbotService
 {
@@ -19,22 +19,11 @@ class ChatbotService
     
     public function processMessage(string $message, string $sessionId): array
     {
-        // Obtener o crear conversación
         $conversation = $this->getOrCreateConversation($sessionId);
-        
-        // Guardar mensaje del usuario
         $userMessage = $this->saveMessage($conversation, 'user', $message);
-        
-        // Obtener contexto relevante
         $context = $this->contextService->getRelevantContext($message);
-        
-        // Construir prompt con contexto
         $prompt = $this->buildContextualPrompt($message, $context, $conversation);
-        
-        // Generar respuesta con Gemini
         $response = $this->generateResponse($prompt);
-        
-        // Guardar respuesta del asistente
         $assistantMessage = $this->saveMessage($conversation, 'assistant', $response, $context);
         
         return [
@@ -49,7 +38,6 @@ class ChatbotService
         $prompt = "Eres un asistente experto en restaurantes para la plataforma MiCiudadGourmet. ";
         $prompt .= "Ayudas a los usuarios a encontrar restaurantes, obtener recomendaciones y resolver dudas sobre gastronomía.\n\n";
         
-        // Agregar contexto de la aplicación si existe
         if (!empty($context)) {
             $prompt .= "INFORMACIÓN RELEVANTE DE LA PLATAFORMA:\n";
             
@@ -78,7 +66,6 @@ class ChatbotService
             $prompt .= "\n";
         }
         
-        // Agregar historial de conversación
         $recentMessages = $conversation->messages()
             ->latest()
             ->limit(10)
@@ -108,7 +95,7 @@ class ChatbotService
                 
             return $result->text();
         } catch (\Exception $e) {
-            \Log::error('Error generating chatbot response: ' . $e->getMessage());
+            Log::error('Error generating chatbot response: ' . $e->getMessage());
             return 'Lo siento, no pude procesar tu consulta en este momento.';
         }
     }
