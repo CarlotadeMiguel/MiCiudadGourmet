@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\PhotoController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\ChatbotController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -46,11 +48,9 @@ Route::get('photos/{photo}', [PhotoController::class, 'show']);       // Ver det
 
 // Rutas del chatbot (protegidas opcionalmente)
 Route::prefix('chatbot')->group(function () {
-        Route::post('/send', [ChatbotController::class, 'sendMessage']);
-	Route::get('/history', [ChatbotController::class, 'getConversationHisto>
+    Route::get('/history', [ChatbotController::class, 'getConversationHistory']);
+    Route::post('/send',    [ChatbotController::class, 'sendMessage']);
 });
-
-
 
 /**
  * Rutas protegidas (requieren autenticación)
