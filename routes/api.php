@@ -44,6 +44,14 @@ Route::get('reviews/{review}', [ReviewController::class, 'show']);    // Ver det
 Route::get('photos', [PhotoController::class, 'index']);              // Listar fotos
 Route::get('photos/{photo}', [PhotoController::class, 'show']);       // Ver detalle foto
 
+// Rutas del chatbot (protegidas opcionalmente)
+Route::prefix('chatbot')->group(function () {
+        Route::post('/send', [ChatbotController::class, 'sendMessage']);
+	Route::get('/history', [ChatbotController::class, 'getConversationHisto>
+});
+
+
+
 /**
  * Rutas protegidas (requieren autenticación)
  */
@@ -70,4 +78,5 @@ Route::middleware('auth:sanctum')->group(function() {
     Route::post('photos', [PhotoController::class, 'store']);
     Route::put('photos/{photo}', [PhotoController::class, 'update']);
     Route::delete('photos/{photo}', [PhotoController::class, 'destroy']);
+
 });
