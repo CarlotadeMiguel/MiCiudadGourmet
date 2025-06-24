@@ -88,6 +88,23 @@ document.addEventListener('DOMContentLoaded', function() {
         // Mostrar indicador de escritura
         showTypingIndicator();
         
+        // Mensaje del bot
+        this.display(json.data.response, 'assistant');
+
+        
+  // Mostrar tarjetas de restaurante si hay contexto
+        if (json.data.context_used) {
+    json.data.context.restaurants?.forEach(r => {
+      this.displayRestaurantCard({
+        name: r.name,
+        address: r.address,
+        description: r.description,
+        categories: r.categories,
+        rating: r.average_rating
+      });
+    });
+  }
+        
         try {
             const response = await fetch('/api/chatbot/send', {
                 method: 'POST',
