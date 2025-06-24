@@ -16,7 +16,7 @@ class EmbeddingService
     public function __construct()
     {
         $this->apiKey = config('services.gemini.api_key');
-        $this->apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent';
+        $this->apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-exp-03-07:embedContent?key=';
     }
 
     /**
@@ -94,7 +94,7 @@ class EmbeddingService
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
             ])->post($this->apiUrl . '?key=' . $this->apiKey, [
-                'model' => 'models/text-embedding-004',
+                'model' => 'models/gemini-embedding-exp-03-07',
                 'content' => [
                     'parts' => [
                         ['text' => $text]
