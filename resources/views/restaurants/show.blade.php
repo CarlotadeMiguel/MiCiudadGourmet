@@ -15,28 +15,30 @@
             <div class="card-header bg-transparent position-relative">
                 <h1 class="h3 mb-0 text-primary">{{ $restaurant->name }}</h1>
 
-                @can('update', $restaurant)
-                    <div class="position-absolute top-0 end-0 p-2">
-                        <a href="{{ route('restaurants.edit', $restaurant) }}"
-                           class="btn btn-sm btn-outline-primary me-2"
-                           data-bs-toggle="tooltip"
-                           title="Editar restaurante">
-                            <i class="bi bi-pencil-square"></i>
-                        </a>
-
-                        <form action="{{ route('restaurants.destroy', $restaurant) }}"
-                              method="POST"
-                              class="d-inline-block"
-                              onsubmit="return confirm('¿Eliminar restaurante?');">
-                            @csrf @method('DELETE')
-                            <button class="btn btn-sm btn-outline-danger"
-                                    data-bs-toggle="tooltip"
-                                    title="Eliminar restaurante">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </form>
-                    </div>
-                @endcan
+               <!-- Botones de edición/eliminación -->
+            <div class="position-absolute top-0 end-0 mt-3 me-3">
+                @if(auth()->check() && auth()->id() === $restaurant->user_id)
+                <div class="d-flex gap-2">
+                    <a href="{{ route('restaurants.edit', $restaurant) }}" 
+                       class="btn btn-primary btn-lg shadow-sm"
+                       data-bs-toggle="tooltip" 
+                       data-bs-placement="left" 
+                       title="Editar restaurante">
+                        <i class="bi bi-pencil-square me-2"></i>Editar
+                    </a>
+                    
+                    <form action="{{ route('restaurants.destroy', $restaurant) }}" method="POST">
+                        @csrf @method('DELETE')
+                        <button type="submit" 
+                                class="btn btn-danger btn-lg shadow-sm"
+                                data-bs-toggle="tooltip" 
+                                data-bs-placement="left" 
+                                title="Eliminar restaurante">
+                            <i class="bi bi-trash"></i>Delete
+                        </button>
+                    </form>
+                </div>
+                @endif
             </div>
 
             <div class="card-body">
