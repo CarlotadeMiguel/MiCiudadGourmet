@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ChatConversation;
 use App\Services\ChatbotService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
