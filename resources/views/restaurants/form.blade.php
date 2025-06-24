@@ -37,6 +37,16 @@
                     </div>
 
                     <div class="form-floating mb-4">
+                        <textarea class="form-control"
+                            id="description"
+                            name="description"
+                            placeholder="Descripción"
+                            style="height: 120px;">{{ old('description', $restaurant->description ?? '') }}</textarea>
+                        <label for="description">Descripción del Restaurante</label>
+                    </div>
+
+
+                    <div class="form-floating mb-4">
                         <input type="tel" 
                                class="form-control" 
                                id="phone" 

@@ -47,6 +47,7 @@ class RestaurantController extends Controller
             'name' => $validated['name'],
             'address' => $validated['address'],
             'phone' => $validated['phone'] ?? null,
+            'description' => $validated['description'] ?? null,
             'user_id' => Auth::id()
         ]);
         

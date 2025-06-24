@@ -13,6 +13,7 @@ class Restaurant extends Model
         'name',
         'address',
         'phone',
+        'description',
         'user_id'
     ];
 

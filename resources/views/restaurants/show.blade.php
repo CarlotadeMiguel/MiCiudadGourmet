@@ -46,6 +46,9 @@
                         <p class="lead text-muted mb-0">
                             <i class="bi bi-geo-alt fs-5 me-2"></i>{{ $restaurant->address }}
                         </p>
+                        @if($restaurant->description)
+                        <p class="mt-3">{{ $restaurant->description }}</p>
+                        @endif
                         @if($restaurant->phone)
                         <p class="text-muted mb-0">
                             <i class="bi bi-telephone fs-5 me-2"></i>{{ $restaurant->phone }}
