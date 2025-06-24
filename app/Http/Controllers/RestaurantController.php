@@ -89,6 +89,7 @@ class RestaurantController extends Controller
             'name' => $validated['name'],
             'address' => $validated['address'],
             'phone' => $validated['phone'] ?? null,
+            'description' => $validated['description'] ?? null,
         ]);
         
         $restaurant->categories()->sync($validated['category_ids']);
