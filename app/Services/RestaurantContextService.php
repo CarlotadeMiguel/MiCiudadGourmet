@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Review;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use App\Services\EmbeddingService;  // IMPORTACIÓN CORRECTA
 
 class RestaurantContextService
 {
@@ -22,97 +23,67 @@ class RestaurantContextService
      */
     public function getRelevantContext(string $message): array
     {
-        Log::info("RestaurantContextService: Procesando mensaje", ['message' => $message]);
-
         $intents = $this->detectIntentions($message);
-        Log::info("RestaurantContextService: Intenciones detectadas", ['intents' => $intents]);
-
         $context = [];
 
         foreach ($intents as $intent) {
             try {
                 match ($intent) {
                     'search_restaurant' => $context['restaurants'] = $this->searchRestaurants($message),
-                    'category_info'     => $context['categories']  = $this->getCategories(),
-                    'recommendations'   => $context['popular']     = $this->getPopularRestaurants(),
-                    'reviews'           => $context['reviews']     = $this->getRecentReviews(),
+                    'category_info'     => $context['categories']   = $this->getCategories(),
+                    'recommendations'   => $context['popular']       = $this->getPopularRestaurants(),
+                    'reviews'           => $context['reviews']       = $this->getRecentReviews(),
                     default             => null,
                 };
-            } catch (\Exception $e) {
-                Log::error("RestaurantContextService: Error procesando intención {$intent}", [
-                    'error' => $e->getMessage()
-                ]);
+            } catch (\Throwable $e) {
+                Log::warning("ContextService error [$intent]: " . $e->getMessage());
             }
         }
 
-        $filtered = array_filter($context);
-        Log::info("RestaurantContextService: Contexto generado", ['context' => $filtered]);
-
-        return $filtered;
+        return array_filter($context);
     }
 
     /**
-     * Detecta las intenciones del usuario basándose en palabras clave y patrones.
+     * Detecta las intenciones del usuario basándose en palabras clave.
      */
     private function detectIntentions(string $message): array
     {
-        $message = strtolower($message);
-        $intents = [];
+        $msg = strtolower($message);
+        $map = [
+            'search_restaurant' => ['buscar', 'restaurante', 'comida', 'quiero'],
+            'category_info'     => ['categoria', 'tipo', 'italiana', 'mexicana'],
+            'recommendations'   => ['popular', 'mejor', 'top'],
+            'reviews'           => ['reseña', 'opinion', 'review'],
+        ];
 
-        $searchKeywords = ['buscar','busco','encontrar','recomendar','sugerir','mostrar','restaurante','comida','comer','cenar','almorzar','cerca','mejor','bueno','donde','quiero'];
-        $categoryKeywords = ['tipo','categoria','categoría','clase','estilo','italiana','mexicana','china','japonesa','española','pizza','sushi','taco','hamburguesa','pasta'];
-        $recommendationKeywords = ['popular','mejor','mejores','recomendado','top','favorito','valorado','puntuado','destacado'];
-        $reviewKeywords = ['opinion','opinión','reseña','comentario','valoracion','valoración','puntuacion','puntuación','review'];
-
-        foreach ($searchKeywords as $kw) {
-            if (str_contains($message, $kw)) {
-                $intents[] = 'search_restaurant';
-                break;
-            }
-        }
-        foreach ($categoryKeywords as $kw) {
-            if (str_contains($message, $kw)) {
-                $intents[] = 'category_info';
-                break;
-            }
-        }
-        foreach ($recommendationKeywords as $kw) {
-            if (str_contains($message, $kw)) {
-                $intents[] = 'recommendations';
-                break;
-            }
-        }
-        foreach ($reviewKeywords as $kw) {
-            if (str_contains($message, $kw)) {
-                $intents[] = 'reviews';
-                break;
+        foreach ($map as $intent => $keywords) {
+            foreach ($keywords as $kw) {
+                if (str_contains($msg, $kw)) {
+                    return [$intent];
+                }
             }
         }
 
-        if (empty($intents)) {
-            $intents[] = 'search_restaurant';
-        }
-
-        return array_unique($intents);
+        return ['search_restaurant'];
     }
 
     /**
-     * Busca restaurantes usando embeddings y, en fallback, términos clave.
+     * Busca restaurantes: primero por embeddings, luego por LIKE en términos clave.
      */
     private function searchRestaurants(string $message): array
     {
-        return Cache::remember("search_restaurants_" . md5($message), 300, function () use ($message) {
-            // 1. Intentar embeddings
+        return Cache::remember('search_' . md5($message), 300, function () use ($message) {
+            // 1) Intentar embeddings
             try {
-                $embeds = $this->embeddingService->findSimilarRestaurants($message, 5);
-                if (!empty($embeds)) {
-                    return $embeds;
+                $emb = $this->embeddingService->findSimilarRestaurants($message, 5);
+                if (!empty($emb)) {
+                    return $emb;
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 Log::warning("Embeddings failed: " . $e->getMessage());
             }
 
-            // 2. Fallback: búsqueda por términos clave
+            // 2) Fallback con términos clave
             $terms = $this->extractSearchTerms($message);
             if (empty($terms)) {
                 return [];
@@ -120,117 +91,115 @@ class RestaurantContextService
 
             $query = Restaurant::query();
             foreach ($terms as $term) {
-                if (strlen($term) >= 3) {
-                    $query->orWhere('name',        'LIKE', "%{$term}%")
-                          ->orWhere('description', 'LIKE', "%{$term}%")
-                          ->orWhere('address',     'LIKE', "%{$term}%")
-                          ->orWhereHas('categories', fn($q) => $q->where('name','LIKE',"%{$term}%"));
+                if (strlen($term) < 3) {
+                    continue;
                 }
+
+                $query->orWhere('name', 'LIKE', "%{$term}%")
+                      ->orWhere('description', 'LIKE', "%{$term}%")
+                      ->orWhere('address', 'LIKE', "%{$term}%")
+                      ->orWhereHas('categories', function ($q) use ($term) {
+                          $q->where('name', 'LIKE', "%{$term}%");
+                      });
             }
 
             return $query->with('categories')
                          ->limit(5)
                          ->get()
-                         ->map(fn($r) => [
-                             'id'             => $r->id,
-                             'name'           => $r->name,
-                             'description'    => $r->description,
-                             'address'        => $r->address,
-                             'phone'          => $r->phone,
-                             'email'          => $r->email,
-                             'image'          => $r->image,
-                             'categories'     => $r->categories->pluck('name')->toArray(),
-                             'average_rating' => $r->reviews()->avg('rating') ?? 0,
-                         ])->toArray();
+                         ->map(function ($r) {
+                             return [
+                                 'id'             => $r->id,
+                                 'name'           => $r->name,
+                                 'description'    => $r->description,
+                                 'address'        => $r->address,
+                                 'phone'          => $r->phone,
+                                 'email'          => $r->email,
+                                 'categories'     => $r->categories->pluck('name')->toArray(),
+                                 'average_rating' => $r->reviews()->avg('rating') ?? 0,
+                             ];
+                         })
+                         ->toArray();
         });
     }
 
     /**
-     * Extrae términos relevantes del mensaje para búsquedas parciales.
+     * Elimina puntuación y stop-words, devuelve términos relevantes.
      */
     private function extractSearchTerms(string $message): array
     {
-        $stopWords = ['el','la','de','y','en','un','una','me','te','para','con','restaurante','restaurantes','lugar'];
-        $words = preg_split('/\s+/', strtolower($message));
-        return array_values(array_filter($words, fn($w) =>
-            strlen($w) >= 3 && !in_array($w, $stopWords)
-        ));
+        // Quita signos de puntuación y pasa a minúsculas
+        $clean = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', mb_strtolower($message));
+        $words = preg_split('/\s+/', $clean, -1, PREG_SPLIT_NO_EMPTY);
+
+        $stop = ['el','la','de','y','en','un','una','para','con','restaurante','lugar'];
+        return array_values(array_filter($words, function ($w) use ($stop) {
+            return strlen($w) >= 3 && !in_array($w, $stop);
+        }));
     }
 
     /**
-     * Obtiene todas las categorías con contador de restaurantes.
+     * Lista categorías con contador de restaurantes.
      */
     private function getCategories(): array
     {
-        return Cache::remember('restaurant_categories', 1440, function () {
+        return Cache::remember('cats', 1440, function () {
             return Category::withCount('restaurants')
                 ->get()
-                ->map(fn($cat) => [
-                    'id'                => $cat->id,
-                    'name'              => $cat->name,
-                    'description'       => $cat->description,
-                    'restaurants_count' => $cat->restaurants_count,
-                ])->toArray();
+                ->map(function ($c) {
+                    return [
+                        'id'    => $c->id,
+                        'name'  => $c->name,
+                        'count' => $c->restaurants_count,
+                    ];
+                })
+                ->toArray();
         });
     }
 
     /**
-     * Obtiene los restaurantes más populares basándose en valoraciones.
+     * Devuelve restaurantes más populares por valoración.
      */
     private function getPopularRestaurants(): array
     {
-        return Cache::remember('popular_restaurants', 720, function () {
-            return Restaurant::select([
-                    'restaurants.*',
-                    \DB::raw('AVG(reviews.rating) as average_rating'),
-                    \DB::raw('COUNT(reviews.id) as review_count')
-                ])
-                ->leftJoin('reviews','restaurants.id','=','reviews.restaurant_id')
+        return Cache::remember('popular', 720, function () {
+            return Restaurant::leftJoin('reviews', 'restaurants.id', '=', 'reviews.restaurant_id')
+                ->selectRaw('restaurants.*, AVG(reviews.rating) as avg_rating')
                 ->groupBy('restaurants.id')
-                ->having('review_count','>=',1)
-                ->orderBy('average_rating','desc')
-                ->orderBy('review_count','desc')
-                ->with('categories')
+                ->orderByDesc('avg_rating')
                 ->limit(5)
+                ->with('categories')
                 ->get()
-                ->map(fn($r) => [
-                    'id'             => $r->id,
-                    'name'           => $r->name,
-                    'description'    => $r->description,
-                    'address'        => $r->address,
-                    'phone'          => $r->phone,
-                    'email'          => $r->email,
-                    'image'          => $r->image,
-                    'categories'     => $r->categories->pluck('name')->toArray(),
-                    'average_rating' => round($r->average_rating, 2),
-                    'review_count'   => $r->review_count,
-                ])->toArray();
+                ->map(function ($r) {
+                    return [
+                        'id'         => $r->id,
+                        'name'       => $r->name,
+                        'rating'     => round($r->avg_rating, 2),
+                        'categories' => $r->categories->pluck('name')->toArray(),
+                    ];
+                })
+                ->toArray();
         });
     }
 
     /**
-     * Obtiene las reseñas más recientes.
+     * Obtiene las últimas 5 reseñas.
      */
     private function getRecentReviews(): array
     {
-        return Cache::remember('recent_reviews', 360, function () {
-            return Review::with(['restaurant','user'])
-                ->orderBy('created_at','desc')
-                ->limit(10)
+        return Cache::remember('reviews', 360, function () {
+            return Review::with(['restaurant', 'user'])
+                ->orderByDesc('created_at')
+                ->limit(5)
                 ->get()
-                ->map(fn($rev) => [
-                    'id'         => $rev->id,
-                    'rating'     => $rev->rating,
-                    'comment'    => $rev->comment,
-                    'created_at' => $rev->created_at->format('d/m/Y H:i'),
-                    'restaurant' => [
-                        'id'   => $rev->restaurant->id,
-                        'name' => $rev->restaurant->name,
-                    ],
-                    'user'       => [
-                        'name' => $rev->user->name ?? 'Usuario anónimo',
-                    ],
-                ])->toArray();
+                ->map(function ($rev) {
+                    return [
+                        'user'    => $rev->user->name ?? 'Anónimo',
+                        'rating'  => $rev->rating,
+                        'comment' => $rev->comment,
+                        'place'   => $rev->restaurant->name,
+                    ];
+                })
+                ->toArray();
         });
     }
 }
