@@ -22,20 +22,33 @@ class RestaurantContextService
      */
     public function getRelevantContext(string $message): array
     {
+        Log::info("RestaurantContextService: Procesando mensaje", ['message' => $message]);
+
         $intents = $this->detectIntentions($message);
+        Log::info("RestaurantContextService: Intenciones detectadas", ['intents' => $intents]);
+
         $context = [];
 
         foreach ($intents as $intent) {
-            match ($intent) {
-                'search_restaurant' => $context['restaurants'] = $this->searchRestaurants($message),
-                'category_info'     => $context['categories']  = $this->getCategories(),
-                'recommendations'   => $context['popular']     = $this->getPopularRestaurants(),
-                'reviews'           => $context['reviews']     = $this->getRecentReviews(),
-                default             => null,
-            };
+            try {
+                match ($intent) {
+                    'search_restaurant' => $context['restaurants'] = $this->searchRestaurants($message),
+                    'category_info'     => $context['categories']  = $this->getCategories(),
+                    'recommendations'   => $context['popular']     = $this->getPopularRestaurants(),
+                    'reviews'           => $context['reviews']     = $this->getRecentReviews(),
+                    default             => null,
+                };
+            } catch (\Exception $e) {
+                Log::error("RestaurantContextService: Error procesando intención {$intent}", [
+                    'error' => $e->getMessage()
+                ]);
+            }
         }
 
-        return array_filter($context);
+        $filtered = array_filter($context);
+        Log::info("RestaurantContextService: Contexto generado", ['context' => $filtered]);
+
+        return $filtered;
     }
 
     /**
@@ -46,62 +59,36 @@ class RestaurantContextService
         $message = strtolower($message);
         $intents = [];
 
-        // Palabras clave para búsqueda de restaurantes
-        $searchKeywords = [
-            'buscar', 'encontrar', 'recomendar', 'sugerir', 'mostrar',
-            'restaurante', 'comida', 'comer', 'cenar', 'almorzar',
-            'cerca', 'mejor', 'bueno', 'donde'
-        ];
+        $searchKeywords = ['buscar','busco','encontrar','recomendar','sugerir','mostrar','restaurante','comida','comer','cenar','almorzar','cerca','mejor','bueno','donde','quiero'];
+        $categoryKeywords = ['tipo','categoria','categoría','clase','estilo','italiana','mexicana','china','japonesa','española','pizza','sushi','taco','hamburguesa','pasta'];
+        $recommendationKeywords = ['popular','mejor','mejores','recomendado','top','favorito','valorado','puntuado','destacado'];
+        $reviewKeywords = ['opinion','opinión','reseña','comentario','valoracion','valoración','puntuacion','puntuación','review'];
 
-        // Palabras clave para categorías
-        $categoryKeywords = [
-            'tipo', 'categoria', 'categoría', 'clase', 'estilo',
-            'italiana', 'mexicana', 'china', 'japonesa', 'española',
-            'pizza', 'sushi', 'taco', 'hamburguesa'
-        ];
-
-        // Palabras clave para recomendaciones
-        $recommendationKeywords = [
-            'popular', 'mejor', 'recomendado', 'top', 'favorito',
-            'valorado', 'puntuado', 'destacado'
-        ];
-
-        // Palabras clave para reseñas
-        $reviewKeywords = [
-            'opinion', 'opinión', 'reseña', 'comentario', 'valoracion',
-            'valoración', 'puntuacion', 'puntuación', 'review'
-        ];
-
-        // Detectar intenciones basándose en palabras clave
-        foreach ($searchKeywords as $keyword) {
-            if (strpos($message, $keyword) !== false) {
+        foreach ($searchKeywords as $kw) {
+            if (str_contains($message, $kw)) {
                 $intents[] = 'search_restaurant';
                 break;
             }
         }
-
-        foreach ($categoryKeywords as $keyword) {
-            if (strpos($message, $keyword) !== false) {
+        foreach ($categoryKeywords as $kw) {
+            if (str_contains($message, $kw)) {
                 $intents[] = 'category_info';
                 break;
             }
         }
-
-        foreach ($recommendationKeywords as $keyword) {
-            if (strpos($message, $keyword) !== false) {
+        foreach ($recommendationKeywords as $kw) {
+            if (str_contains($message, $kw)) {
                 $intents[] = 'recommendations';
                 break;
             }
         }
-
-        foreach ($reviewKeywords as $keyword) {
-            if (strpos($message, $keyword) !== false) {
+        foreach ($reviewKeywords as $kw) {
+            if (str_contains($message, $kw)) {
                 $intents[] = 'reviews';
                 break;
             }
         }
 
-        // Si no se detectó ninguna intención específica, usar búsqueda por defecto
         if (empty($intents)) {
             $intents[] = 'search_restaurant';
         }
@@ -110,40 +97,64 @@ class RestaurantContextService
     }
 
     /**
-     * Busca restaurantes usando embeddings y fallback tradicional.
+     * Busca restaurantes usando embeddings y, en fallback, términos clave.
      */
     private function searchRestaurants(string $message): array
     {
         return Cache::remember("search_restaurants_" . md5($message), 300, function () use ($message) {
+            // 1. Intentar embeddings
             try {
-                // Intentar usar embeddings primero
-                return $this->embeddingService->findSimilarRestaurants($message, 5);
-            } catch (Exception $e) {
-                Log::warning("Embeddings search failed, using fallback: " . $e->getMessage());
-                
-                // Fallback: búsqueda tradicional por nombre y descripción
-                return Restaurant::where('name', 'LIKE', "%{$message}%")
-                    ->orWhere('description', 'LIKE', "%{$message}%")
-                    ->orWhere('address', 'LIKE', "%{$message}%")
-                    ->with(['category'])
-                    ->limit(5)
-                    ->get()
-                    ->map(function ($restaurant) {
-                        return [
-                            'id' => $restaurant->id,
-                            'name' => $restaurant->name,
-                            'description' => $restaurant->description,
-                            'address' => $restaurant->address,
-                            'phone' => $restaurant->phone,
-                            'email' => $restaurant->email,
-                            'image' => $restaurant->image,
-                            'category' => $restaurant->category->name ?? 'Sin categoría',
-                            'average_rating' => $restaurant->reviews()->avg('rating') ?? 0
-                        ];
-                    })
-                    ->toArray();
+                $embeds = $this->embeddingService->findSimilarRestaurants($message, 5);
+                if (!empty($embeds)) {
+                    return $embeds;
+                }
+            } catch (\Exception $e) {
+                Log::warning("Embeddings failed: " . $e->getMessage());
             }
+
+            // 2. Fallback: búsqueda por términos clave
+            $terms = $this->extractSearchTerms($message);
+            if (empty($terms)) {
+                return [];
+            }
+
+            $query = Restaurant::query();
+            foreach ($terms as $term) {
+                if (strlen($term) >= 3) {
+                    $query->orWhere('name',        'LIKE', "%{$term}%")
+                          ->orWhere('description', 'LIKE', "%{$term}%")
+                          ->orWhere('address',     'LIKE', "%{$term}%")
+                          ->orWhereHas('categories', fn($q) => $q->where('name','LIKE',"%{$term}%"));
+                }
+            }
+
+            return $query->with('categories')
+                         ->limit(5)
+                         ->get()
+                         ->map(fn($r) => [
+                             'id'             => $r->id,
+                             'name'           => $r->name,
+                             'description'    => $r->description,
+                             'address'        => $r->address,
+                             'phone'          => $r->phone,
+                             'email'          => $r->email,
+                             'image'          => $r->image,
+                             'categories'     => $r->categories->pluck('name')->toArray(),
+                             'average_rating' => $r->reviews()->avg('rating') ?? 0,
+                         ])->toArray();
         });
+    }
+
+    /**
+     * Extrae términos relevantes del mensaje para búsquedas parciales.
+     */
+    private function extractSearchTerms(string $message): array
+    {
+        $stopWords = ['el','la','de','y','en','un','una','me','te','para','con','restaurante','restaurantes','lugar'];
+        $words = preg_split('/\s+/', strtolower($message));
+        return array_values(array_filter($words, fn($w) =>
+            strlen($w) >= 3 && !in_array($w, $stopWords)
+        ));
     }
 
     /**
@@ -154,15 +165,12 @@ class RestaurantContextService
         return Cache::remember('restaurant_categories', 1440, function () {
             return Category::withCount('restaurants')
                 ->get()
-                ->map(function ($category) {
-                    return [
-                        'id' => $category->id,
-                        'name' => $category->name,
-                        'description' => $category->description,
-                        'restaurants_count' => $category->restaurants_count
-                    ];
-                })
-                ->toArray();
+                ->map(fn($cat) => [
+                    'id'                => $cat->id,
+                    'name'              => $cat->name,
+                    'description'       => $cat->description,
+                    'restaurants_count' => $cat->restaurants_count,
+                ])->toArray();
         });
     }
 
@@ -177,29 +185,26 @@ class RestaurantContextService
                     \DB::raw('AVG(reviews.rating) as average_rating'),
                     \DB::raw('COUNT(reviews.id) as review_count')
                 ])
-                ->leftJoin('reviews', 'restaurants.id', '=', 'reviews.restaurant_id')
+                ->leftJoin('reviews','restaurants.id','=','reviews.restaurant_id')
                 ->groupBy('restaurants.id')
-                ->having('review_count', '>=', 1)
-                ->orderBy('average_rating', 'desc')
-                ->orderBy('review_count', 'desc')
-                ->with(['category'])
+                ->having('review_count','>=',1)
+                ->orderBy('average_rating','desc')
+                ->orderBy('review_count','desc')
+                ->with('categories')
                 ->limit(5)
                 ->get()
-                ->map(function ($restaurant) {
-                    return [
-                        'id' => $restaurant->id,
-                        'name' => $restaurant->name,
-                        'description' => $restaurant->description,
-                        'address' => $restaurant->address,
-                        'phone' => $restaurant->phone,
-                        'email' => $restaurant->email,
-                        'image' => $restaurant->image,
-                        'category' => $restaurant->category->name ?? 'Sin categoría',
-                        'average_rating' => round($restaurant->average_rating, 2),
-                        'review_count' => $restaurant->review_count
-                    ];
-                })
-                ->toArray();
+                ->map(fn($r) => [
+                    'id'             => $r->id,
+                    'name'           => $r->name,
+                    'description'    => $r->description,
+                    'address'        => $r->address,
+                    'phone'          => $r->phone,
+                    'email'          => $r->email,
+                    'image'          => $r->image,
+                    'categories'     => $r->categories->pluck('name')->toArray(),
+                    'average_rating' => round($r->average_rating, 2),
+                    'review_count'   => $r->review_count,
+                ])->toArray();
         });
     }
 
@@ -209,26 +214,23 @@ class RestaurantContextService
     private function getRecentReviews(): array
     {
         return Cache::remember('recent_reviews', 360, function () {
-            return Review::with(['restaurant', 'user'])
-                ->orderBy('created_at', 'desc')
+            return Review::with(['restaurant','user'])
+                ->orderBy('created_at','desc')
                 ->limit(10)
                 ->get()
-                ->map(function ($review) {
-                    return [
-                        'id' => $review->id,
-                        'rating' => $review->rating,
-                        'comment' => $review->comment,
-                        'created_at' => $review->created_at->format('d/m/Y H:i'),
-                        'restaurant' => [
-                            'id' => $review->restaurant->id,
-                            'name' => $review->restaurant->name
-                        ],
-                        'user' => [
-                            'name' => $review->user->name ?? 'Usuario anónimo'
-                        ]
-                    ];
-                })
-                ->toArray();
+                ->map(fn($rev) => [
+                    'id'         => $rev->id,
+                    'rating'     => $rev->rating,
+                    'comment'    => $rev->comment,
+                    'created_at' => $rev->created_at->format('d/m/Y H:i'),
+                    'restaurant' => [
+                        'id'   => $rev->restaurant->id,
+                        'name' => $rev->restaurant->name,
+                    ],
+                    'user'       => [
+                        'name' => $rev->user->name ?? 'Usuario anónimo',
+                    ],
+                ])->toArray();
         });
     }
 }
