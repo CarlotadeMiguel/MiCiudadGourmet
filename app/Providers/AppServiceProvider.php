@@ -6,6 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use App\Models\Restaurant;
 use App\Models\RestaurantEmbedding;
 use App\Services\EmbeddingService;
+use Illuminate\Support\Facades\Schema;
 
 class AppServiceProvider extends ServiceProvider
 {
