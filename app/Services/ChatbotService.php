@@ -32,31 +32,19 @@ class ChatbotService
 
     private function buildContextualPrompt(string $msg, array $ctx, ChatConversation $conv): string
     {
-        $p  = "Eres el asistente de MiCiudadGourmet. Resumes de forma profesional y concisa.\n\n";
-
+        $p = "Eres el asistente de MiCiudadGourmet. Recomienda primero estos restaurantes internos:\n";
+    
         if (!empty($ctx['restaurants'])) {
-            $p .= "ENCONTRADO EN LA PLATAFORMA:\n";
             foreach ($ctx['restaurants'] as $r) {
-                $cats = !empty($r['categories'])
-                    ? implode(', ', $r['categories'])
-                    : '—';
-                $p .= "- {$r['name']} ({$cats}): {$r['address']}. {$r['description']}\n";
+                $p .= "- {$r['name']} (" .
+                       implode(', ', $r['categories']) .
+                       "): {$r['address']}\n";
             }
-            $p .= "\nINDICA SÓLO ESTAS OPCIONES, SIN PEDIR MÁS DATOS.\n\n";
         }
-
-        $hist = $conv->messages()->latest()->limit(10)->get()->reverse();
-        if ($hist->isNotEmpty()) {
-            $p .= "HISTORIAL:\n";
-            foreach ($hist as $m) {
-                $actor = $m->role==='user'? 'Usuario':'Asistente';
-                $p .= "{$actor}: {$m->content}\n";
-            }
-            $p .= "\n";
-        }
-
-        $p .= "PREGUNTA: {$msg}\n";
-        $p .= "RESPONDE de forma directa y profesional.";
+    
+        $p .= "\nSi no bastan, añade 1-2 opciones externas reales.\n";
+        $p .= "Pregunta del usuario: {$msg}\n";
+        $p .= "Responde en 2-3 frases máximas.";
         return $p;
     }
 

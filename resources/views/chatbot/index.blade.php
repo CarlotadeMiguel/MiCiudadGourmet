@@ -4,27 +4,30 @@
 <div class="container py-4">
   <div id="chat" class="border rounded p-3" style="height:400px; overflow-y:auto;"></div>
   <div class="input-group mt-2">
-    <input id="msg" class="form-control" placeholder="Escribe tu mensaje…" />
+    <input id="msg" class="form-control" placeholder="Escribe tu mensaje…" autocomplete="off"/>
     <button id="btn" class="btn btn-primary">Enviar</button>
   </div>
 </div>
+@endsection
 
 @push('scripts')
 <script>
+// Referencias al DOM
 const chat  = document.getElementById('chat'),
       input = document.getElementById('msg'),
       btn   = document.getElementById('btn');
 
-/* 1. Escapamos HTML para evitar XSS  */
-function escapeHtml (str) {
+// Escapa HTML para evitar XSS
+function escapeHtml(str) {
   return str.replace(/[&<>'"]/g, m =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m])
   );
 }
 
-function add (role, text) {
+// Añade un mensaje (usuario o asistente) al chat
+function add(role, text) {
   const div = document.createElement('div');
-  div.className = role === 'user' ? 'text-end mb-2' : 'text-start mb-2';
+  div.className = role==='user' ? 'text-end mb-2' : 'text-start mb-2';
   div.innerHTML = `<span class="badge ${role==='user'?'bg-primary':'bg-secondary'}">
                      ${escapeHtml(text)}
                    </span>`;
@@ -32,52 +35,61 @@ function add (role, text) {
   chat.scrollTop = chat.scrollHeight;
 }
 
-function addCard (r) {
-  /* 2. Mostramos categorías opcionalmente y evitamos <img> roto */
-  const cat = r.categories?.length ? `<p><em>${r.categories.join(', ')}</em></p>` : '';
-  const img = r.image ? `<img src="${r.image}" class="card-img-top" alt="${r.name}">` : '';
-  chat.insertAdjacentHTML('beforeend', `
+// Añade una tarjeta de restaurante con enlace al detalle
+function addCard(r) {
+  const categories = Array.isArray(r.categories) ? r.categories.join(', ') : '';
+  const imgTag = r.image
+    ? `<img src="${r.image}" class="card-img-top" alt="${escapeHtml(r.name)}" onerror="this.remove()">`
+    : '';
+  const cardHtml = `
     <div class="card mb-2" style="max-width:300px">
-      ${img}
+      ${imgTag}
       <div class="card-body">
         <h5 class="card-title">${escapeHtml(r.name)}</h5>
-        ${cat}
+        ${categories ? `<p><em>${escapeHtml(categories)}</em></p>` : ''}
         <p class="card-text">${escapeHtml(r.description)}</p>
         <p class="card-text"><small class="text-muted">${escapeHtml(r.address)}</small></p>
-        <a href="/restaurants/${r.id}" target="_blank"
-           class="btn btn-sm btn-outline-primary">Ver detalle</a>
+        <a href="/restaurants/${r.id}" target="_blank" class="btn btn-sm btn-outline-primary">
+          Ver detalle
+        </a>
       </div>
-    </div>`);
+    </div>`;
+  chat.insertAdjacentHTML('beforeend', cardHtml);
   chat.scrollTop = chat.scrollHeight;
 }
 
-async function send () {
+// Envía el mensaje al backend y maneja la respuesta
+async function send() {
   const txt = input.value.trim();
   if (!txt) return;
-
   add('user', txt);
   input.value = '';
   add('assistant', '…');
 
   try {
+    // Session ID persistente
     const sid = localStorage.getItem('sid') || String(Date.now());
     localStorage.setItem('sid', sid);
 
-    const res  = await fetch('/api/chatbot/send', {
-      method : 'POST',
+    const res = await fetch('/api/chatbot/send', {
+      method: 'POST',
       headers: {
-        'Content-Type'  : 'application/json',
-        'X-CSRF-TOKEN'  : document.querySelector('meta[name="csrf-token"]').content
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
       },
-      body   : JSON.stringify({ message: txt, session_id: sid })
+      body: JSON.stringify({ message: txt, session_id: sid })
     });
+
     const json = await res.json();
-    chat.lastChild.remove();           // quitamos el “…”
+    chat.lastChild.remove(); // quita “…”
 
     if (json.success) {
+      // Mensaje del asistente
       add('assistant', json.data.response);
-      if (json.data.context_used && json.data.context?.restaurants) {
-        json.data.context.restaurants.forEach(addCard);
+
+      // Tarjetas solo si hay contexto y restaurantes
+      if (json.data.context_used && Array.isArray(json.data.context.restaurants)) {
+        json.data.context.restaurants.forEach(r => addCard(r));
       }
     } else {
       add('assistant', 'Error en la respuesta del servidor');
@@ -88,15 +100,23 @@ async function send () {
   }
 }
 
+// Evento: envío al hacer click o Enter
 btn.onclick = send;
-input.addEventListener('keyup', e => e.key === 'Enter' && send());
+input.addEventListener('keyup', e => {
+  if (e.key === 'Enter') send();
+});
 
+// Saludo inicial (solo una vez por sesión)
 document.addEventListener('DOMContentLoaded', () => {
-
-    add('assistant', '¡Hola! Soy tu asistente de MiCiudadGourmet. ¿En qué puedo ayudarte hoy?');
-
+  if (!sessionStorage.getItem('welcomed')) {
+    add('assistant',
+      `<div class="alert alert-info py-1 mb-2">
+         ¡Hola! Soy tu asistente de <strong>MiCiudadGourmet</strong>. ¿En qué puedo ayudarte hoy?
+       </div>`
+    );
+    sessionStorage.setItem('welcomed','1');
+  }
   input.focus();
 });
 </script>
 @endpush
-@endsection

@@ -23,24 +23,8 @@ class RestaurantContextService
      */
     public function getRelevantContext(string $message): array
     {
-        $intents = $this->detectIntentions($message);
-        $context = [];
-
-        foreach ($intents as $intent) {
-            try {
-                match ($intent) {
-                    'search_restaurant' => $context['restaurants'] = $this->searchRestaurants($message),
-                    'category_info'     => $context['categories']   = $this->getCategories(),
-                    'recommendations'   => $context['popular']       = $this->getPopularRestaurants(),
-                    'reviews'           => $context['reviews']       = $this->getRecentReviews(),
-                    default             => null,
-                };
-            } catch (\Throwable $e) {
-                Log::warning("ContextService error [$intent]: " . $e->getMessage());
-            }
-        }
-
-        return array_filter($context);
+        $restaurants = $this->searchRestaurants($msg);  
+        return ['restaurants' => $restaurants];
     }
 
     /**
