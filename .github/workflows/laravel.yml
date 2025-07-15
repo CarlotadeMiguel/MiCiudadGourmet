@@ -1,1 +1,63 @@
+name: Laravel
 
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  tests-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, bcmath, gd, mysqli
+
+      - name: Composer Install
+        run: composer install --prefer-dist --no-interaction --optimize-autoloader
+
+      - name: Copy .env
+        run: php -r "file_exists('.env') || copy('.env.example', '.env');"
+
+      - name: Generate APP_KEY
+        run: php artisan key:generate --ansi
+
+      - name: Set Permissions
+        run: chmod -R 777 storage bootstrap/cache
+
+      - name: Create SQLite DB
+        run: |
+          mkdir -p database
+          touch database/database.sqlite
+
+      - name: Migrate & Seed
+        run: php artisan migrate --seed --force
+
+      - name: Run Tests (parallel)
+        run: php artisan test --parallel
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Build Frontend Assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: laravel-ci-artifact
+          path: |
+            vendor/**
+            public/build/**
+            bootstrap/cache/**
