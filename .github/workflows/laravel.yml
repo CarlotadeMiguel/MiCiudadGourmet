@@ -1,4 +1,4 @@
-name: CI Básico Laravel (SQLite)
+name: Laravel
 
 on:
   push:
@@ -11,59 +11,53 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Obtener el código
+      # 1. Clonar el repositorio
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Instalar PHP 8.4 y extensiones
+      # 2. Configurar PHP y extensiones necesarias
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, xml, bcmath, gd, sqlite
+          extensions: mbstring, xml, bcmath, sqlite
 
-      # 3. Instalar Composer 
-      - name: Composer Install
+      # 3. Instalar dependencias de Composer (Laravel + dev)
+      - name: Instalar dependencias de Composer
         run: composer install --prefer-dist --no-interaction --optimize-autoloader
 
       # 4. Copiar .env y generar APP_KEY
-      - name: Copy .env & Generate Key
+      - name: Copiar .env y generar clave
         run: |
-          php -r "file_exists('.env') || copy('.env.example', '.env');"
+          cp .env.example .env
           php artisan key:generate --ansi
 
-      # 5. Ajustar permisos
-      - name: Set Permissions
-        run: chmod -R 777 storage bootstrap/cache
-
-      # 6. Crear base SQLite
-      - name: Create SQLite DB
+      # 5. Crear base de datos SQLite
+      - name: Crear base de datos SQLite
         run: |
           mkdir -p database
           touch database/database.sqlite
 
-      # 7. Instalar ParaTest compatible
-      - name: Require ParaTest & Reinstall
-        run: |
-          composer require --dev brianium/paratest
-          composer install --prefer-dist --no-interaction --optimize-autoloader
+      # 6. Instalar ParaTest para tests paralelos
+      - name: Instalar ParaTest
+        run: composer require --dev brianium/paratest --with-all-dependencies
 
-      # 8. Ejecutar migraciones
-      - name: Migrate
+      # 7. Ejecutar migraciones (antes de los tests)
+      - name: Ejecutar migraciones
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: database/database.sqlite
         run: php artisan migrate --force
 
-      # 9. Ejecutar tests en paralelo
-      - name: Run Tests (parallel)
+      # 8. Ejecutar tests en paralelo
+      - name: Ejecutar tests (con ParaTest)
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: database/database.sqlite
         run: php artisan test --parallel
 
-      # 10. Instalar Node.js y compilar assets (opcional)
-      - name: Setup Node.js & Build
+      # 9. Instalar Node y compilar assets (npm run build)
+      - name: Preparar Node y compilar frontend
         uses: actions/setup-node@v3
         with:
           node-version: '18'
@@ -71,12 +65,11 @@ jobs:
           npm ci
           npm run build
 
-      # 11. Subir artefactos de build
-      - name: Upload Artifacts
+      # 10. Subir artefactos compilados como resultado
+      - name: Subir artefactos del build
         uses: actions/upload-artifact@v4
         with:
-          name: laravel-ci-artifact
+          name: laravel-ci-build
           path: |
-            vendor/**
-            public/build/**
-            bootstrap/cache/**
+            public/build
+            bootstrap/cache
