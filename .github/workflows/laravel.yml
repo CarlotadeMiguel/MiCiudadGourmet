@@ -17,40 +17,39 @@ jobs:
   prepare:
     name: Prepare Environment
     runs-on: [self-hosted, Linux, X64]
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Verify PHP installation
         run: |
           php -v
           composer --version
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-      
+
       - name: Create clean workspace
         run: |
           rm -rf vendor/ node_modules/
           mkdir -p database
           touch database/database.sqlite
-      
+
       - name: Copy environment file
         run: cp .env.example .env
-      
+
       - name: Install PHP dependencies
         run: composer install --prefer-dist --no-interaction --optimize-autoloader
-      
+
       - name: Generate APP_KEY and run migrations
         run: |
           php artisan key:generate --ansi
           php artisan migrate --force
-      
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -66,22 +65,21 @@ jobs:
     name: Run Tests
     runs-on: [self-hosted, Linux, X64]
     needs: prepare
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: laravel-app
           path: .
-      
+
       - name: Run tests
         run: php artisan test --parallel --colors=never
-      
+
       - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -95,30 +93,29 @@ jobs:
     name: Build Assets
     runs-on: [self-hosted, Linux, X64]
     needs: prepare
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-      
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: laravel-app
           path: .
-      
+
       - name: Install JS dependencies
         run: npm ci --legacy-peer-deps
-      
+
       - name: Build assets
         run: npx vite build
-      
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -135,26 +132,31 @@ jobs:
     needs: [test, build]
     if: github.ref == 'refs/heads/main'
     environment: production
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: laravel-app
+          path: .
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-assets
           path: .
-      
+
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
-      
+
       - name: Deploy to server
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -166,15 +168,15 @@ jobs:
           # Setup SSH agent
           eval "$(ssh-agent -s)"
           echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-          
-          # Sync files to server
+
+          # Sincronizar archivos a servidor
           rsync -avz --delete \
             --exclude=".git" \
             --exclude="storage/" \
             --exclude=".env" \
             ./ "$SSH_USER@$SSH_HOST:$TARGET_DIR"
-          
-          # Execute post-deploy commands
+
+          # Comandos post-deploy
           ssh -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" "
             cd $TARGET_DIR && \
             php artisan migrate --force && \
