@@ -8,6 +8,7 @@ use App\Models\Restaurant;
 use App\Models\Category;
 use App\Models\Review;
 use App\Models\Photo;
+use App\Models\RestaurantEmbedding;
 
 class DatabaseSeeder extends Seeder
 {
@@ -37,6 +38,12 @@ class DatabaseSeeder extends Seeder
             Photo::factory(rand(1, 2))->create([
                 'imageable_id' => $restaurant->id,
                 'imageable_type' => Restaurant::class,
+            ]);
+
+            RestaurantEmbedding::create([
+                'restaurant_id' => $restaurant->id,
+                'embedding' => array_map(fn() => round(mt_rand() / mt_getrandmax(), 4), range(1, 10)), // vector de 10 floats
+                'text_content' => "{$restaurant->name}. {$restaurant->description}",
             ]);
         });
 

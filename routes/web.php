@@ -12,6 +12,11 @@ Route::middleware('auth')->group(function () {
         ->except(['index', 'show']);
 });
 
+Route::get('/chatbot', function () {
+    return view('chatbot.index');
+})->name('chatbot');
+
+
 // Rutas públicas de restaurantes (solo index y show)
 Route::get('restaurants', [RestaurantController::class, 'index'])->name('restaurants.index');
 Route::get('restaurants/{restaurant}', [RestaurantController::class, 'show'])->name('restaurants.show');

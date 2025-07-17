@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\PhotoController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\ChatbotController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -44,6 +46,12 @@ Route::get('reviews/{review}', [ReviewController::class, 'show']);    // Ver det
 Route::get('photos', [PhotoController::class, 'index']);              // Listar fotos
 Route::get('photos/{photo}', [PhotoController::class, 'show']);       // Ver detalle foto
 
+// Rutas del chatbot (protegidas opcionalmente)
+Route::prefix('chatbot')->group(function () {
+    Route::get('/history', [ChatbotController::class, 'getConversationHistory']);
+    Route::post('/send',    [ChatbotController::class, 'sendMessage']);
+});
+
 /**
  * Rutas protegidas (requieren autenticación)
  */
@@ -70,4 +78,5 @@ Route::middleware('auth:sanctum')->group(function() {
     Route::post('photos', [PhotoController::class, 'store']);
     Route::put('photos/{photo}', [PhotoController::class, 'update']);
     Route::delete('photos/{photo}', [PhotoController::class, 'destroy']);
+
 });
