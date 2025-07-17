@@ -32,7 +32,9 @@
                     <p class="card-text text-muted">
                         <i class="bi bi-geo-alt me-1"></i>{{ $restaurant->address }}
                     </p>
-                    
+                    @if($restaurant->description)
+                    <p class="card-text">{{ Str::limit($restaurant->description, 80) }}</p>  <!-- ← Resumen -->
+                    @endif
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
                             @if($restaurant->reviews_count > 0)

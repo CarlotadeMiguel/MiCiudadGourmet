@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Mi Ciudad Gourmet</title>
     
     <!-- Bootstrap CSS -->
@@ -32,6 +33,9 @@
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="{{ route('restaurants.index') }}">Restaurantes</a>
+                    </li>
+                    <li class="nav-item">
+                            <a class="nav-link" href="{{ route('chatbot') }}">Asistente Gourmet</a>
                     </li>
                 </ul>
                 <ul class="navbar-nav">
@@ -79,5 +83,19 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     @stack('scripts')
+    <a href="{{ route('chatbot') }}" class="btn btn-primary chat-button">
+  💬 Chat
+</a>
+<style>
+  .chat-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    border-radius: 50%;
+    padding: 15px 18px;
+    font-size: 24px;
+  }
+</style>
 </body>
 </html>
