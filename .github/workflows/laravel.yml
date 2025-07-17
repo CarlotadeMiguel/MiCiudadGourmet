@@ -174,7 +174,7 @@ jobs:
           ssh -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" "
             cd $TARGET_DIR && \
             mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions storage/logs bootstrap/cache && \
-            sudo chown -R $SSH_USER:apache storage database bootstrap/cache || true && \
+            sudo chown -R $SSH_USER:$SSH_USER storage database bootstrap/cache || true && \
             sudo chmod -R 775 storage database bootstrap/cache || true && \
             sudo chmod 664 database/database.sqlite || true && \
             php artisan migrate --force && \
