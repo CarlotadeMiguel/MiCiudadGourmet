@@ -3,17 +3,15 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 env:
-  # Base de datos SQLite para CI
   DB_CONNECTION: sqlite
   DB_DATABASE: database/database.sqlite
 
 jobs:
-  # 1. PREPARE - Preparación de entorno y dependencias
   prepare:
     name: Prepare Environment
     runs-on: [self-hosted, Linux, X64]
@@ -23,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify PHP installation
+      - name: Verify PHP and Composer installation
         run: |
           php -v
           composer --version
@@ -33,13 +31,13 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Create clean workspace
+      - name: Clean workspace and setup Laravel environment
         run: |
           rm -rf vendor/ node_modules/
           mkdir -p database
           touch database/database.sqlite
 
-      - name: Copy environment file
+      - name: Copy .env file for CI
         run: cp .env.example .env
 
       - name: Install PHP dependencies
@@ -50,7 +48,7 @@ jobs:
           php artisan key:generate --ansi
           php artisan migrate --force
 
-      - name: Upload artifacts
+      - name: Upload app artifacts (vendor, .env, db)
         uses: actions/upload-artifact@v4
         with:
           name: laravel-app
@@ -60,7 +58,6 @@ jobs:
             database/database.sqlite
           retention-days: 1
 
-  # 2. TEST - Ejecución de tests PHPUnit
   test:
     name: Run Tests
     runs-on: [self-hosted, Linux, X64]
@@ -71,13 +68,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download artifacts
+      - name: Download app artifacts
         uses: actions/download-artifact@v4
         with:
           name: laravel-app
           path: .
 
-      - name: Run tests
+      - name: Run tests (ParaTest)
         run: php artisan test --parallel --colors=never
 
       - name: Upload test logs
@@ -88,7 +85,6 @@ jobs:
           path: storage/logs/
           retention-days: 5
 
-  # 3. BUILD - Compilación de assets front-end
   build:
     name: Build Assets
     runs-on: [self-hosted, Linux, X64]
@@ -104,7 +100,7 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Download artifacts
+      - name: Download app artifacts
         uses: actions/download-artifact@v4
         with:
           name: laravel-app
@@ -113,7 +109,7 @@ jobs:
       - name: Install JS dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Build assets
+      - name: Build frontend assets
         run: npx vite build
 
       - name: Upload build artifacts
@@ -125,7 +121,6 @@ jobs:
             public/mix-manifest.json
           retention-days: 1
 
-  # 4. DEPLOY - Despliegue a producción
   deploy:
     name: Deploy to Production
     runs-on: [self-hosted, Linux, X64]
@@ -138,7 +133,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download backend artifacts
+      - name: Download app artifacts
         uses: actions/download-artifact@v4
         with:
           name: laravel-app
@@ -165,29 +160,22 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT }}
           TARGET_DIR: ${{ secrets.TARGET_DIR }}
         run: |
-          # Setup SSH agent
           eval "$(ssh-agent -s)"
           echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
 
-          # Sincronizar archivos a servidor
+          # Sincronizar código y assets
           rsync -avz --delete \
             --exclude=".git" \
             --exclude="storage/" \
             --exclude=".env" \
             ./ "$SSH_USER@$SSH_HOST:$TARGET_DIR"
 
+          # Crear carpetas necesarias, corregir permisos y ejecutar comandos post-deploy
           ssh -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" "
             cd $TARGET_DIR && \
             mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions storage/logs bootstrap/cache && \
-            php artisan migrate --force && \
-            php artisan config:cache && \
-            php artisan route:cache && \
-            php artisan view:cache && \
-            php artisan queue:restart
-          "
-          # Comandos post-deploy
-          ssh -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" "
-            cd $TARGET_DIR && \
+            sudo chown -R $SSH_USER:apache storage database bootstrap/cache || true && \
+            sudo chmod -R 775 storage database bootstrap/cache || true && \
             php artisan migrate --force && \
             php artisan config:cache && \
             php artisan route:cache && \
