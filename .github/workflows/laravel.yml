@@ -176,6 +176,7 @@ jobs:
             mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions storage/logs bootstrap/cache && \
             sudo chown -R $SSH_USER:apache storage database bootstrap/cache || true && \
             sudo chmod -R 775 storage database bootstrap/cache || true && \
+            sudo chmod 664 database/database.sqlite || true && \
             php artisan migrate --force && \
             php artisan config:cache && \
             php artisan route:cache && \
