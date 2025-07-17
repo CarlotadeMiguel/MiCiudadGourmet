@@ -176,6 +176,15 @@ jobs:
             --exclude=".env" \
             ./ "$SSH_USER@$SSH_HOST:$TARGET_DIR"
 
+          ssh -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" "
+            cd $TARGET_DIR && \
+            mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions storage/logs bootstrap/cache && \
+            php artisan migrate --force && \
+            php artisan config:cache && \
+            php artisan route:cache && \
+            php artisan view:cache && \
+            php artisan queue:restart
+          "
           # Comandos post-deploy
           ssh -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" "
             cd $TARGET_DIR && \
