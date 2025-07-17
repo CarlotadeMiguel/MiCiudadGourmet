@@ -5,30 +5,29 @@
     <div class="col-12">
         <div class="card border-0 shadow-sm mb-4">
             @if($restaurant->photos->first())
-                <img src="{{ $restaurant->photos->first()->url }}" 
-                     class="card-img-top object-fit-cover" 
-                     style="height: 300px;" 
+                <img src="{{ $restaurant->photos->first()->url }}"
+                     class="card-img-top object-fit-cover"
+                     style="height: 300px;"
                      alt="{{ $restaurant->name }}">
             @endif
-            
+
             <!-- Botones de edición/eliminación -->
             <div class="position-absolute top-0 end-0 mt-3 me-3">
                 @if(auth()->check() && auth()->id() === $restaurant->user_id)
                 <div class="d-flex gap-2">
-                    <a href="{{ route('restaurants.edit', $restaurant) }}" 
+                    <a href="{{ route('restaurants.edit', $restaurant) }}"
                        class="btn btn-primary btn-lg shadow-sm"
-                       data-bs-toggle="tooltip" 
-                       data-bs-placement="left" 
+                       data-bs-toggle="tooltip"
+                       data-bs-placement="left"
                        title="Editar restaurante">
                         <i class="bi bi-pencil-square me-2"></i>Editar
                     </a>
-                    
                     <form action="{{ route('restaurants.destroy', $restaurant) }}" method="POST">
                         @csrf @method('DELETE')
-                        <button type="submit" 
+                        <button type="submit"
                                 class="btn btn-danger btn-lg shadow-sm"
-                                data-bs-toggle="tooltip" 
-                                data-bs-placement="left" 
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="left"
                                 title="Eliminar restaurante">
                             <i class="bi bi-trash"></i>Delete
                         </button>
@@ -41,7 +40,6 @@
                 <!-- Encabezado -->
                 <div class="mb-4">
                     <h1 class="display-4 fw-bold text-primary">{{ $restaurant->name }}</h1>
-                    
                     <div class="d-flex align-items-center gap-3 mb-3">
                         <p class="lead text-muted mb-0">
                             <i class="bi bi-geo-alt fs-5 me-2"></i>{{ $restaurant->address }}
@@ -52,6 +50,9 @@
                         </p>
                         @endif
                     </div>
+                    @if($restaurant->description)
+                        <p class="mt-3">{{ $restaurant->description }}</p>
+                    @endif
                 </div>
 
                 <!-- Categorías y Reseñas -->
@@ -82,7 +83,7 @@
                                         $topReviews = $reviews->take(5);
                                         $remainingReviews = $reviews->count() > 5 ? $reviews->slice(5) : collect();
                                     @endphp
-                                    
+
                                     @forelse($topReviews as $review)
                                         <div class="card mb-3 border-0 shadow-sm">
                                             <div class="card-body">
@@ -109,14 +110,13 @@
                                     @empty
                                         <p class="text-muted">Aún no hay reseñas para este restaurante.</p>
                                     @endforelse
-                                    
+
                                     @if($remainingReviews->count() > 0)
                                         <div class="text-center mt-3">
                                             <button class="btn btn-sm btn-outline-secondary" id="show-more-reviews">
                                                 Ver más reseñas ({{ $remainingReviews->count() }} más)
                                             </button>
                                         </div>
-                                        
                                         <div id="more-reviews" class="d-none mt-3">
                                             @foreach($remainingReviews as $review)
                                                 <div class="card mb-3 border-0 shadow-sm">
@@ -145,25 +145,21 @@
                                         </div>
                                     @endif
                                 </div>
-
                                 @auth
                                     @php
                                         $userReview = $restaurant->reviews->where('user_id', auth()->id())->first();
                                     @endphp
-                                    
                                     @if(auth()->id() !== $restaurant->user_id)
                                         @if(!$userReview)
                                             <div class="mt-4">
                                                 <a href="{{ route('restaurants.show', $restaurant) }}?review_form=1" class="btn btn-primary mb-3">
                                                     <i class="bi bi-star-fill me-2"></i>Deja tu opinión
                                                 </a>
-                                                
                                                 <div id="review-form-container" class="{{ !request()->has('review_form') ? 'd-none' : '' }}">
                                                     <h5>Deja tu reseña</h5>
                                                     <form action="{{ route('reviews.store') }}" method="POST">
                                                         @csrf
                                                         <input type="hidden" name="restaurant_id" value="{{ $restaurant->id }}">
-                                                        
                                                         <div class="mb-3">
                                                             <label for="rating" class="form-label">Calificación</label>
                                                             <select class="form-select" id="rating" name="rating" required>
@@ -175,12 +171,10 @@
                                                                 <option value="5">5 - Excelente</option>
                                                             </select>
                                                         </div>
-                                                        
                                                         <div class="mb-3">
                                                             <label for="comment" class="form-label">Comentario</label>
                                                             <textarea class="form-control" id="comment" name="comment" rows="3" required></textarea>
                                                         </div>
-                                                        
                                                         <div class="d-flex gap-2">
                                                             <button type="submit" class="btn btn-primary">Enviar reseña</button>
                                                             <a href="{{ route('restaurants.show', $restaurant) }}" class="btn btn-outline-secondary">Cancelar</a>
@@ -191,7 +185,7 @@
                                         @endif
                                     @endif
                                 @endauth
-                                
+
                                 <!-- Formulario para editar reseña -->
                                 @auth
                                     @if(request()->has('edit_review'))
@@ -207,7 +201,6 @@
                                                     <form action="{{ route('reviews.update', $editingReview) }}" method="POST">
                                                         @csrf
                                                         @method('PUT')
-                                                        
                                                         <div class="mb-3">
                                                             <label for="rating" class="form-label">Calificación</label>
                                                             <select class="form-select" id="rating" name="rating" required>
@@ -218,12 +211,10 @@
                                                                 <option value="5" {{ $editingReview->rating == 5 ? 'selected' : '' }}>5 - Excelente</option>
                                                             </select>
                                                         </div>
-                                                        
                                                         <div class="mb-3">
                                                             <label for="comment" class="form-label">Comentario</label>
                                                             <textarea class="form-control" id="comment" name="comment" rows="3" required>{{ $editingReview->comment }}</textarea>
                                                         </div>
-                                                        
                                                         <div class="d-flex gap-2">
                                                             <button type="submit" class="btn btn-primary">Guardar cambios</button>
                                                             <a href="{{ route('restaurants.show', $restaurant) }}" class="btn btn-outline-secondary">Cancelar</a>
@@ -252,19 +243,17 @@
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl)
         });
-        
+
         // Mostrar más reseñas
         const showMoreBtn = document.getElementById('show-more-reviews');
         const moreReviews = document.getElementById('more-reviews');
-        
+
         if (showMoreBtn && moreReviews) {
             showMoreBtn.addEventListener('click', function() {
                 moreReviews.classList.toggle('d-none');
-                if (moreReviews.classList.contains('d-none')) {
-                    showMoreBtn.textContent = 'Ver más reseñas';
-                } else {
-                    showMoreBtn.textContent = 'Ver menos reseñas';
-                }
+                showMoreBtn.textContent = moreReviews.classList.contains('d-none')
+                    ? 'Ver más reseñas'
+                    : 'Ver menos reseñas';
             });
         }
     });

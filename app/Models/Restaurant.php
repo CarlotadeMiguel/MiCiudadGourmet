@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Services\EmbeddingService;
 
 class Restaurant extends Model
 {
@@ -13,6 +14,7 @@ class Restaurant extends Model
         'name',
         'address',
         'phone',
+        'description',
         'user_id'
     ];
 
@@ -62,4 +64,27 @@ class Restaurant extends Model
     {
         return ucwords($value);
     }
+
+public function embedding()
+{
+    return $this->hasOne(RestaurantEmbedding::class);
+}
+
+// En el modelo Restaurant
+protected static function booted()
+{
+    static::created(function ($restaurant) {
+        dispatch(function () use ($restaurant) {
+            app(EmbeddingService::class)->createRestaurantEmbedding($restaurant);
+        })->afterResponse();
+    });
+
+    static::updated(function ($restaurant) {
+        dispatch(function () use ($restaurant) {
+            app(EmbeddingService::class)->createRestaurantEmbedding($restaurant);
+        })->afterResponse();
+    });
+}
+
+
 }

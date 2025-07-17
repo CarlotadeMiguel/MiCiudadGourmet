@@ -1,75 +1,185 @@
-name: Laravel
+# .github/workflows/ci-cd.yml
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
+
+env:
+  # Base de datos SQLite para CI
+  DB_CONNECTION: sqlite
+  DB_DATABASE: database/database.sqlite
 
 jobs:
-  tests-and-build:
-    runs-on: ubuntu-latest
-
+  # 1. PREPARE - Preparación de entorno y dependencias
+  prepare:
+    name: Prepare Environment
+    runs-on: [self-hosted, Linux, X64]
+    
     steps:
-      # 1. Clonar el repositorio
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      # 2. Configurar PHP y extensiones necesarias
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
-          extensions: mbstring, xml, bcmath, sqlite
-
-      # 3. Instalar dependencias de Composer (Laravel + dev)
-      - name: Instalar dependencias de Composer
-        run: composer install --prefer-dist --no-interaction --optimize-autoloader
-
-      # 4. Copiar .env y generar APP_KEY
-      - name: Copiar .env y generar clave
+          fetch-depth: 0
+      
+      - name: Verify PHP installation
         run: |
-          cp .env.example .env
-          php artisan key:generate --ansi
-
-      # 5. Crear base de datos SQLite
-      - name: Crear base de datos SQLite
-        run: |
-          mkdir -p database
-          touch database/database.sqlite
-
-      # 6. Instalar ParaTest para tests paralelos
-      - name: Instalar ParaTest
-        run: composer require --dev brianium/paratest --with-all-dependencies
-
-      # 7. Ejecutar migraciones (antes de los tests)
-      - name: Ejecutar migraciones
-        env:
-          DB_CONNECTION: sqlite
-          DB_DATABASE: database/database.sqlite
-        run: php artisan migrate --force
-
-      # 8. Ejecutar tests en paralelo
-      - name: Ejecutar tests (con ParaTest)
-        env:
-          DB_CONNECTION: sqlite
-          DB_DATABASE: database/database.sqlite
-        run: php artisan test --parallel
-
-      # 9. Instalar Node y compilar assets (npm run build)
-      - name: Preparar Node y compilar frontend
-        uses: actions/setup-node@v3
+          php -v
+          composer --version
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
-      - run: |
-          npm ci
-          npm run build
-
-      # 10. Subir artefactos compilados como resultado
-      - name: Subir artefactos del build
+      
+      - name: Create clean workspace
+        run: |
+          rm -rf vendor/ node_modules/
+          mkdir -p database
+          touch database/database.sqlite
+      
+      - name: Copy environment file
+        run: cp .env.example .env
+      
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --optimize-autoloader
+      
+      - name: Generate APP_KEY and run migrations
+        run: |
+          php artisan key:generate --ansi
+          php artisan migrate --force
+      
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: laravel-ci-build
+          name: laravel-app
           path: |
-            public/build
-            bootstrap/cache
+            vendor/
+            .env
+            database/database.sqlite
+          retention-days: 1
+
+  # 2. TEST - Ejecución de tests PHPUnit
+  test:
+    name: Run Tests
+    runs-on: [self-hosted, Linux, X64]
+    needs: prepare
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: laravel-app
+          path: .
+      
+      - name: Run tests
+        run: php artisan test --parallel --colors=never
+      
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: storage/logs/
+          retention-days: 5
+
+  # 3. BUILD - Compilación de assets front-end
+  build:
+    name: Build Assets
+    runs-on: [self-hosted, Linux, X64]
+    needs: prepare
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: laravel-app
+          path: .
+      
+      - name: Install JS dependencies
+        run: npm ci --legacy-peer-deps
+      
+      - name: Build assets
+        run: npx vite build
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-assets
+          path: |
+            public/build/
+            public/mix-manifest.json
+          retention-days: 1
+
+  # 4. DEPLOY - Despliegue a producción
+  deploy:
+    name: Deploy to Production
+    runs-on: [self-hosted, Linux, X64]
+    needs: [test, build]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-assets
+          path: .
+      
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+      
+      - name: Deploy to server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+        run: |
+          # Setup SSH agent
+          eval "$(ssh-agent -s)"
+          echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+          
+          # Sync files to server
+          rsync -avz --delete \
+            --exclude=".git" \
+            --exclude="storage/" \
+            --exclude=".env" \
+            ./ "$SSH_USER@$SSH_HOST:$TARGET_DIR"
+          
+          # Execute post-deploy commands
+          ssh -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" "
+            cd $TARGET_DIR && \
+            php artisan migrate --force && \
+            php artisan config:cache && \
+            php artisan route:cache && \
+            php artisan view:cache && \
+            php artisan queue:restart
+          "
